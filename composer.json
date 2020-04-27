@@ -1,0 +1,16 @@
+{
+    "name": "pas9x/letsencrypt",
+    "description": "Let's Encrypt PHP Client",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "pas9x",
+            "homepage": "https://pascalhp.net/"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "phpseclib/phpseclib": "~2.0"
+    }
+}
