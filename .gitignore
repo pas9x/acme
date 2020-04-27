@@ -1,3 +1,11 @@
 /.idea
 /vendor
 /composer.lock
+/tests/config.php
+/tests/error.log
+/tests/directory.json
+/tests/account.json
+/tests/domain.csr
+/tests/domain.key
+/tests/domain.pem
+/tests/certificate.pem
