@@ -15,9 +15,9 @@ use \phpseclib\File\X509;
 
 class LetsEncrypt
 {
-    //public $directoryURL = 'https://acme-v02.api.letsencrypt.org/directory';
+    //public $directoryURL = 'https://acme-staging-v02.api.letsencrypt.org/directory';
     /** @var string $directoryURL */
-    public $directoryURL = 'https://acme-staging-v02.api.letsencrypt.org/directory';
+    public $directoryURL = 'https://acme-v02.api.letsencrypt.org/directory';
 
     /** @var array $directory */
     public $directory = [];
