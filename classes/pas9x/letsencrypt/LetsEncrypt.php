@@ -3,6 +3,7 @@
 namespace pas9x\letsencrypt;
 
 use \Exception;
+use \InvalidArgumentException;
 
 /**
  * Todo: сделать поддержку множественных ошибок subproblems
@@ -106,14 +107,15 @@ class LetsEncrypt
     }
 
     /**
-     * @param string $email
-     * @param bool $termsOfServiceAgreed
+     * @param $email
+     * @param $termsOfServiceAgreed
      * @param bool $onlyReturnExisting
+     * @param array|null $externalAccountBinding
      * @return Account
      * @throws Exception
      * @throws UnexpectedResponse
      */
-    public function registerAccount($email, $termsOfServiceAgreed, $onlyReturnExisting = false)
+    public function registerAccount($email, $termsOfServiceAgreed, $onlyReturnExisting = false, array $externalAccountBinding = null)
     {
         if (!empty($this->accountUrl)) {
             throw new Exception('$accountUrl property is not empty. Clear it first before register account.');
@@ -121,12 +123,23 @@ class LetsEncrypt
         if (empty($this->accountKeys)) {
             $this->accountKeys = KeyPair::generate(2048);
         }
+        $url = $this->getDirectory('newAccount');
         $payload = [
             'termsOfServiceAgreed' => $termsOfServiceAgreed,
             'onlyReturnExisting' => $onlyReturnExisting,
             'contact' => ["mailto:$email"],
         ];
-        $this->internals->sendRequest($this->getDirectory('newAccount'), 'jwk', $payload);
+        if (!empty($externalAccountBinding)) {
+            if (empty($externalAccountBinding['kid']) || empty($externalAccountBinding['key'])) {
+                throw new InvalidArgumentException('No kid or key in $externalAccountBinding');
+            }
+            $eabProtected = [
+                'kid' => $externalAccountBinding['kid'],
+                'url' => $url,
+            ];
+            $payload['externalAccountBinding'] = $this->internals->signByHmac($eabProtected, $this->accountKeys->getJwk(), $externalAccountBinding['key']);
+        }
+        $this->internals->sendRequest($url, 'jwk', $payload);
         $response = $this->internals->getResponse();
         if (!isset($this->lastRequest->responseHeaders['location'][0])) {
             throw new UnexpectedResponse('No `location` response header');
@@ -207,7 +220,7 @@ class LetsEncrypt
     {
         $deadline = time() + $timeout;
         $isTimedOut = function() use($deadline) {
-            return time() < $deadline;
+            return time() > $deadline;
         };
 
         $callback = is_callable($onStatus) ? $onStatus : function(){};

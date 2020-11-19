@@ -9,3 +9,4 @@
 /tests/domain.key
 /tests/domain.pem
 /tests/certificate.pem
+/tests/test*.php

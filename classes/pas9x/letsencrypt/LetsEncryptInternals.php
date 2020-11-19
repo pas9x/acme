@@ -40,7 +40,7 @@ class LetsEncryptInternals
             $curl->curlOptions[CURLOPT_NOBODY] = 1;
             $curl->execute();
             if (empty($this->lastNonce)) {
-                throw new Exception('Failed to acuire newNonce');
+                throw new Exception('Failed to acquire newNonce');
             }
         }
         $nonce = $this->lastNonce;
@@ -103,60 +103,100 @@ class LetsEncryptInternals
     }
 
     /**
-     * @param string $url
-     * @param $signWith
+     * @param array $protected
+     * @param array|object|null $payload
+     * @param string $key
+     * @return array
+     * @throws Exception
+     */
+    public function signByHmac(array $protected, $payload, $key)
+    {
+        $protected['alg'] = 'HS256';
+        $protected_b64 = static::b64_urlencode(json_encode($protected, JSON_UNESCAPED_SLASHES));
+
+        if ($payload === null) {
+            $payload_b64 = '';
+        } else {
+            $payload_b64 = self::b64_urlencode(json_encode($payload, JSON_UNESCAPED_SLASHES));
+        }
+
+        $hasher = new Hash('sha256');
+        $hasher->setKey($key);
+        $signed = $hasher->hash($protected_b64 . '.' . $payload_b64);
+        $signed_b64 = self::b64_urlencode($signed);
+        return [
+            'protected' => $protected_b64,
+            'payload' => $payload_b64,
+            'signature' => $signed_b64
+        ];
+    }
+
+    /**
+     * @param array $protected
      * @param array|object|null $payload
      * @return array
      * @throws Exception
      */
-    public function formatRequest($url, $signWith, $payload = null)
+    public function signByPrivateKey(array $protected, $payload)
+    {
+        $protected['alg'] = 'RS256';
+        $protected_b64 = static::b64_urlencode(json_encode($protected, JSON_UNESCAPED_SLASHES));
+
+        if ($payload === null) {
+            $payload_b64 = '';
+        } else {
+            $payload_b64 = self::b64_urlencode(json_encode($payload, JSON_UNESCAPED_SLASHES));
+        }
+
+        $signed = $this->le->accountKeys->rsa->sign($protected_b64 . '.' . $payload_b64);
+        $signed_b64 = static::b64_urlencode($signed);
+        return [
+            'protected' => $protected_b64,
+            'payload' => $payload_b64,
+            'signature' => $signed_b64
+        ];
+    }
+
+    /**
+     * @param string $url
+     * @param $signSubject
+     * @param array|object|null $payload
+     * @return array
+     * @throws Exception
+     */
+    public function formatRequest($url, $signSubject, $payload = null)
     {
         if (empty($this->le->accountKeys)) {
             throw new Exception('No account private key. ' . get_class($this->le) . ' $accountKeys property is empty.');
         }
-
         $protected = [
-            'alg' => 'RS256',
             'url' => $url,
             'nonce' => $this->getNonce(),
         ];
-        if ($signWith === 'jwk') {
+        if ($signSubject === 'jwk') {
             $protected['jwk'] = $this->le->accountKeys->getJwk();
-        } elseif ($signWith === 'kid') {
+        } elseif ($signSubject === 'kid') {
             if (empty($this->le->accountUrl)) {
                 throw new Exception('Empty $kid property. You can acquire it after account registration.');
             }
             $protected['kid'] = $this->le->accountUrl;
         } else {
-            throw new Exception('Invalid value of $signWith argument');
-        }
-        $protected_b64 = static::b64_urlencode(json_encode($protected));
-
-        if ($payload === null) {
-            $payload_b64 = '';
-        } else {
-            $payload_b64 = self::b64_urlencode(json_encode($payload));
+            throw new Exception('Invalid value of $signSubject argument');
         }
 
-        $signed = $this->le->accountKeys->rsa->sign($protected_b64 . '.' . $payload_b64);
-        $signed_b64 = static::b64_urlencode($signed);
-        $result = [
-            'protected' => $protected_b64,
-            'payload' => $payload_b64,
-            'signature' => $signed_b64
-        ];
+        $result = $this->signByPrivateKey($protected, $payload);
         return $result;
     }
 
     /**
      * @param string $url
-     * @param string $signWith
+     * @param string $signSubject
      * @param null|array|object $payload
      */
-    public function sendRequest($url, $signWith, $payload = null)
+    public function sendRequest($url, $signSubject, $payload = null)
     {
-        $request = $this->formatRequest($url, $signWith, $payload);
-        $postdata = json_encode($request, JSON_PRETTY_PRINT);
+        $request = $this->formatRequest($url, $signSubject, $payload);
+        $postdata = json_encode($request, JSON_UNESCAPED_SLASHES);
         $curl = $this->getCurl($url);
         $curl->requestHeaders['Content-Type'] = 'application/jose+json';
         $curl->post($postdata);
@@ -233,6 +273,10 @@ class LetsEncryptInternals
         foreach ($dnFields as $name => $value) {
             $x509->setDNProp($name, $value);
         }
+
+        // duct tape for zerossl
+        // TODO: remove
+        $additionalDomains[] = $primaryDomain;
 
         $san = [];
         if (!empty($additionalDomains)) {

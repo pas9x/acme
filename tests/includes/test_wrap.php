@@ -31,8 +31,9 @@ function runTest(callable $testCode)
     try {
         if ($registerAccount) {
             $email = getConfig('email');
+            $eab = getConfig('externalAccountBinding', null);
             stdout("Registering account for {$email}...\n");
-            $le->registerAccount($email, true);
+            $le->registerAccount($email, true, false, $eab);
             $accountInfo = [
                 'privateKey' => $accountKeys->privateKeyPem,
                 'accountUrl' => $le->accountUrl,
