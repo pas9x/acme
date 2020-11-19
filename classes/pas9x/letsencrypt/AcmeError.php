@@ -16,6 +16,9 @@ class AcmeError extends \Exception
     /** @var array $rawError */
     public $rawError;
 
+    /** @var string $pureMessage */
+    public $pureMessage;
+
     /**
      * @param string $type
      * @param string $detail
@@ -28,13 +31,17 @@ class AcmeError extends \Exception
         $this->detail = $detail;
         $this->httpCode = $httpCode;
         $message = 'ACME error';
-        if (!empty($detail)) {
-            $message .= ": $detail";
-        } else {
+        if (empty($detail)) {
             $message .= ", type=$type";
+            $pure = "type=$type";
+        } else {
+            $message .= ": $detail";
+            $pure = $detail;
         }
         $message .= ", http_code=$httpCode";
+        $pure .= ", http_code=$httpCode";
         $this->rawError = $rawError;
+        $this->pureMessage = $pure;
         parent::__construct($message);
     }
 }

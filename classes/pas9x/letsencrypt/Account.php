@@ -2,8 +2,6 @@
 
 namespace pas9x\letsencrypt;
 
-use \Exception;
-
 class Account extends StatusBasedObject
 {
     protected function getObjectType()
@@ -23,31 +21,28 @@ class Account extends StatusBasedObject
                 "mailto:$email",
             ],
         ];
-        $accountUpdated = $this->entrails->saveAccount($newFields);
+        $accountUpdated = $this->internals->saveAccount($newFields);
         $this->refresh($accountUpdated);
     }
 
     public function keyChange(KeyPair $newKeys)
     {
-        $oldKeys = $this->entrails->le->accountKeys;
-        $this->entrails->le->accountKeys = $newKeys;
+        $oldKeys = $this->internals->le->accountKeys;
+        $this->internals->le->accountKeys = $newKeys;
 
         $subpayloadConfig = [
-            'format' => 'b64json',
-            'payload' => [
-                'account' => $this->entrails->le->accountUrl,
-                'oldKey' => $oldKeys->getJwk(),
-            ],
+            'account' => $this->internals->le->accountUrl,
+            'oldKey' => $oldKeys->getJwk(),
         ];
 
-        $keyChangeUrl = $this->entrails->le->getDirectory('keyChange');
-        $payload = $this->entrails->formatRequest($keyChangeUrl, 'jwk', $subpayloadConfig);
-        $this->entrails->le->accountKeys = $oldKeys;
-        $this->entrails->postWithPayload($keyChangeUrl, $payload, 'kid');
+        $keyChangeUrl = $this->internals->le->getDirectory('keyChange');
+        $payload = $this->internals->formatRequest($keyChangeUrl, 'jwk', $subpayloadConfig);
+        $this->internals->le->accountKeys = $oldKeys;
+        $this->internals->sendRequest($keyChangeUrl, 'kid', $payload);
 
-        $response = $this->entrails->getResponse();
+        $response = $this->internals->getResponse();
         $this->refresh($response);
-        $this->entrails->le->accountKeys = $newKeys;
+        $this->internals->le->accountKeys = $newKeys;
     }
 
     public function deactivate()
@@ -55,7 +50,7 @@ class Account extends StatusBasedObject
         $newFields = [
             'status' => 'deactivated',
         ];
-        $accountUpdated = $this->entrails->saveAccount($newFields);
+        $accountUpdated = $this->internals->saveAccount($newFields);
         $this->refresh($accountUpdated);
     }
 }

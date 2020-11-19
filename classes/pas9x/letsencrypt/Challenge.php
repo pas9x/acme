@@ -24,9 +24,9 @@ class Challenge extends StatusBasedObject
     public function validate()
     {
         $payload = new \stdClass;
-        $this->entrails->postWithPayload($this->url, $payload, 'kid');
-        $response = LetsEncryptEntrails::jsonDecode($this->entrails->le->lastRequest->responseBody);
-        $challengeUpdated = new static($this->entrails, $this->url, $response);
+        $this->internals->sendRequest($this->url, 'kid', $payload);
+        $response = LetsEncryptInternals::jsonDecode($this->internals->le->lastRequest->responseBody);
+        $challengeUpdated = new static($this->internals, $this->url, $response);
         $this->refresh($challengeUpdated);
     }
 }

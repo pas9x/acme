@@ -1,7 +1,7 @@
 <?php
 
 use \pas9x\letsencrypt\LetsEncrypt;
-use \pas9x\letsencrypt\LetsEncryptEntrails;
+use \pas9x\letsencrypt\LetsEncryptInternals;
 
 require_once __DIR__ . '/includes/bootstrap.php';
 
@@ -12,7 +12,7 @@ $testCode = function(LetsEncrypt $le) {
         return;
     }
     $pems = file_get_contents($certFile);
-    $chain = LetsEncryptEntrails::parseCertificateChain($pems);
+    $chain = LetsEncryptInternals::parseCertificateChain($pems);
     $certifificatePem = $chain[0];
     stdout("Revocation certificate...\n");
     $le->revokeCertificate($certifificatePem);

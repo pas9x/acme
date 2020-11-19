@@ -30,7 +30,7 @@ class Order extends StatusBasedObject
         }
         $result = [];
         foreach ($this->info['authorizations'] as $authzUrl) {
-            $authz = $this->entrails->getAuthorization($authzUrl);
+            $authz = $this->internals->getAuthorization($authzUrl);
             $result[] = $authz;
         }
         return $result;
@@ -40,7 +40,7 @@ class Order extends StatusBasedObject
     public function getDomainsVerificationData()
     {
         $result = [];
-        $thumbprint_b64 = LetsEncryptEntrails::b64_urlencode($this->entrails->le->accountKeys->thumbprint());
+        $thumbprint_b64 = LetsEncryptInternals::b64_urlencode($this->internals->le->accountKeys->thumbprint());
         foreach ($this->getAuthorizations() as $authz) {
             $authzDomain = $authz->getAttribute('identifier')['value'];
             $verificationData = new VerificationData;
@@ -51,7 +51,7 @@ class Order extends StatusBasedObject
                     $verificationData->fileUri = '/.well-known/acme-challenge/' . $challenge->getAttribute('token');
                     $verificationData->fileContent = $keyAuthorization;
                 } elseif ($challengeType === 'dns-01') {
-                    $verificationData->txtRecord = LetsEncryptEntrails::sha256($keyAuthorization, 'b64url');
+                    $verificationData->txtRecord = LetsEncryptInternals::sha256($keyAuthorization, 'b64url');
                 }
             }
             $result[$authzDomain] = $verificationData;
@@ -160,13 +160,13 @@ class Order extends StatusBasedObject
             }
         }
 
-        $csr = LetsEncryptEntrails::generateCSR(null, $email, $primaryDomain, $additionalDomains, [], $distinguishedNameFields);
+        $csr = LetsEncryptInternals::generateCSR(null, $email, $primaryDomain, $additionalDomains, [], $distinguishedNameFields);
         $payload = [
-            'csr' => LetsEncryptEntrails::b64_urlencode($csr->der),
+            'csr' => LetsEncryptInternals::b64_urlencode($csr->der),
         ];
-        $this->entrails->postWithPayload($this->getAttribute('finalize'), $payload, 'kid');
-        $response = $this->entrails->getResponse();
-        $orderUpdated = new static($this->entrails, $this->url, $response);
+        $this->internals->sendRequest($this->getAttribute('finalize'), 'kid', $payload);
+        $response = $this->internals->getResponse();
+        $orderUpdated = new static($this->internals, $this->url, $response);
         $this->refresh($orderUpdated);
         return $csr;
     }
@@ -198,15 +198,15 @@ class Order extends StatusBasedObject
             throw new Exception("Status of this order is `$status`. Downloading certificate is possible only when order status is `valid`.");
         }
         $certificateUrl = $this->getAttribute('certificate');
-        $this->entrails->postWithoutPayload($certificateUrl, 'kid');
-        $this->entrails->checkForError();
-        $response = $this->entrails->le->lastRequest->responseBody;
+        $this->internals->sendRequest($certificateUrl, 'kid');
+        $this->internals->checkForError();
+        $response = $this->internals->le->lastRequest->responseBody;
         try {
-            $certificateChain = LetsEncryptEntrails::parseCertificateChain($response);
+            $certificateChain = LetsEncryptInternals::parseCertificateChain($response);
         } catch (Exception $e) {
-            throw new UnexpectedResponse('Failed to parse response as chain of certificate PEMs. http_code=' . $this->entrails->le->lastRequest->responseCode);
+            throw new UnexpectedResponse('Failed to parse response as chain of certificate PEMs. http_code=' . $this->internals->le->lastRequest->responseCode);
         }
-        if (!LetsEncryptEntrails::checkCertificateChain($certificateChain)) {
+        if (!LetsEncryptInternals::checkCertificateChain($certificateChain)) {
             throw new UnexpectedResponse('Certificate chain is invalid');
         }
         return $certificateChain;

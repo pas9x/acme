@@ -1,7 +1,7 @@
 <?php
 
 use \pas9x\letsencrypt\LetsEncrypt;
-use \pas9x\letsencrypt\LetsEncryptEntrails;
+use \pas9x\letsencrypt\LetsEncryptInternals;
 use \pas9x\letsencrypt\KeyPair;
 
 function runTest(callable $testCode)
@@ -9,7 +9,7 @@ function runTest(callable $testCode)
     $accountFile = dirname(__DIR__) . '/account.json';
     if (file_exists($accountFile)) {
         stdout("Using account keys from $accountFile\n");
-        $accountInfo = LetsEncryptEntrails::jsonDecode(file_get_contents($accountFile));
+        $accountInfo = LetsEncryptInternals::jsonDecode(file_get_contents($accountFile));
         $accountKeys = new KeyPair($accountInfo['privateKey']);
         $le = new LetsEncrypt($accountKeys, $accountInfo['accountUrl']);
         $registerAccount = false;
@@ -22,7 +22,7 @@ function runTest(callable $testCode)
     $le->directoryURL = getConfig('directoryUrl');
     $directoryFile = __DIR__ . '/../directory.json';
     if (file_exists($directoryFile)) {
-        $le->directory = LetsEncryptEntrails::jsonDecode(file_get_contents($directoryFile));
+        $le->directory = LetsEncryptInternals::jsonDecode(file_get_contents($directoryFile));
     } else {
         $directory = $le->getDirectory();
         file_put_contents($directoryFile, json_encode($directory, JSON_PRETTY_PRINT));

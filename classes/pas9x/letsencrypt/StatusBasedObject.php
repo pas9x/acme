@@ -6,8 +6,8 @@ use \Exception;
 
 abstract class StatusBasedObject
 {
-    /** @var LetsEncryptEntrails $entrails */
-    public $entrails;
+    /** @var LetsEncryptInternals $internals */
+    public $internals;
 
     /** @var string $url */
     public $url;
@@ -15,7 +15,7 @@ abstract class StatusBasedObject
     /** @var array $info */
     public $info = [];
 
-    public final function __construct(LetsEncryptEntrails $entrails, $url, array $info)
+    public final function __construct(LetsEncryptInternals $internals, $url, array $info)
     {
         if (!isset($info['status'])) {
             throw new UnexpectedResponse('No $info[status] field. It is not an ' . $this->getObjectType() . ' object.');
@@ -27,7 +27,7 @@ abstract class StatusBasedObject
                 }
             }
         }
-        $this->entrails = $entrails;
+        $this->internals = $internals;
         $this->url = $url;
         $this->info = $info;
         if (method_exists($this, 'construct1')) {
@@ -62,10 +62,10 @@ abstract class StatusBasedObject
             }
             $this->info = $newInfo->info;
         } elseif (is_array($newInfo)) {
-            $newObject = new static($this->entrails, $this->url, $newInfo);
+            $newObject = new static($this->internals, $this->url, $newInfo);
             $this->info = $newObject->info;
         } elseif ($newInfo === null) {
-            $tmpObject = $this->entrails->getObject(get_class($this), $this->url);
+            $tmpObject = $this->internals->getObject(get_class($this), $this->url);
             $this->info = $tmpObject->info;
         } else {
             throw new Exception('Invalid value of $newInfo argument');

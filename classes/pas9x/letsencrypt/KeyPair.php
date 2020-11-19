@@ -82,14 +82,14 @@ class KeyPair
     public function thumbprint()
     {
         $kty = 'RSA';
-        $n = LetsEncryptEntrails::b64_urlencode($this->rsa->modulus->toBytes());
-        $e = LetsEncryptEntrails::b64_urlencode($this->rsa->publicExponent->toBytes());
+        $n = LetsEncryptInternals::b64_urlencode($this->rsa->modulus->toBytes());
+        $e = LetsEncryptInternals::b64_urlencode($this->rsa->publicExponent->toBytes());
         /* Do not to that. Fucking lets encrypt don't care that valid json can be in arbitrary format. We don't know
         how PHP will encode json in future versions.
         $keyJson = json_encode(compact('e', 'kty', 'n'));
         */
         $keyJson = '{"e":"' . $e . '","kty":"' . $kty . '","n":"' . $n . '"}'; // We have to format strict string to get correct hash
-        $result = LetsEncryptEntrails::sha256($keyJson);
+        $result = LetsEncryptInternals::sha256($keyJson);
         return $result;
     }
 
@@ -97,8 +97,8 @@ class KeyPair
     {
         return [
             'kty' => 'RSA',
-            'n' => LetsEncryptEntrails:: b64_urlencode($this->rsa->modulus->toBytes()),
-            'e' => LetsEncryptEntrails::b64_urlencode($this->rsa->publicExponent->toBytes()),
+            'n' => LetsEncryptInternals:: b64_urlencode($this->rsa->modulus->toBytes()),
+            'e' => LetsEncryptInternals::b64_urlencode($this->rsa->publicExponent->toBytes()),
         ];
     }
 }

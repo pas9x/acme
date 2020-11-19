@@ -3,8 +3,6 @@
 namespace pas9x\letsencrypt;
 
 use \Exception;
-use \phpseclib\Crypt\RSA;
-use \phpseclib\File\X509;
 
 /**
  * Todo: сделать поддержку множественных ошибок subproblems
@@ -15,9 +13,11 @@ use \phpseclib\File\X509;
 
 class LetsEncrypt
 {
-    //public $directoryURL = 'https://acme-staging-v02.api.letsencrypt.org/directory';
+    const DEFAULT_DIRECTORY_URL = 'https://acme-v02.api.letsencrypt.org/directory';
+    const TEST_DIRECTORY_URL = 'https://acme-staging-v02.api.letsencrypt.org/directory';
+
     /** @var string $directoryURL */
-    public $directoryURL = 'https://acme-v02.api.letsencrypt.org/directory';
+    public $directoryURL = self::DEFAULT_DIRECTORY_URL;
 
     /** @var array $directory */
     public $directory = [];
@@ -61,8 +61,8 @@ class LetsEncrypt
         self::REVOCATION_REASON_AA_COMPROMISE,
     ];
 
-    /** @var LetsEncryptEntrails $entrails */
-    public $entrails;
+    /** @var LetsEncryptInternals $internals */
+    public $internals;
 
     public function __construct(KeyPair $accountKeys = null, $accountUrl = null)
     {
@@ -71,7 +71,7 @@ class LetsEncrypt
         }
         $this->accountKeys = $accountKeys;
         $this->accountUrl = $accountUrl;
-        $this->entrails = new LetsEncryptEntrails($this);
+        $this->internals = new LetsEncryptInternals($this);
     }
 
     /**
@@ -82,9 +82,9 @@ class LetsEncrypt
     public function getDirectory($service = null)
     {
         if (empty($this->directory) || !is_array($this->directory)) {
-            $curl = $this->entrails->getCurl($this->directoryURL);
+            $curl = $this->internals->getCurl($this->directoryURL);
             $curl->execute();
-            $directory = LetsEncryptEntrails::jsonDecode($curl->responseBody);
+            $directory = LetsEncryptInternals::jsonDecode($curl->responseBody);
             if (!is_array($directory) || empty($directory)) {
                 throw new Exception('No directory found on ' . $this->directoryURL);
             }
@@ -116,7 +116,7 @@ class LetsEncrypt
     public function registerAccount($email, $termsOfServiceAgreed, $onlyReturnExisting = false)
     {
         if (!empty($this->accountUrl)) {
-            throw new Exception('$kid property is not empty. Clear it first before register account.');
+            throw new Exception('$accountUrl property is not empty. Clear it first before register account.');
         }
         if (empty($this->accountKeys)) {
             $this->accountKeys = KeyPair::generate(2048);
@@ -126,12 +126,12 @@ class LetsEncrypt
             'onlyReturnExisting' => $onlyReturnExisting,
             'contact' => ["mailto:$email"],
         ];
-        $this->entrails->postWithPayload($this->getDirectory('newAccount'), $payload, 'jwk');
-        $response = $this->entrails->getResponse();
+        $this->internals->sendRequest($this->getDirectory('newAccount'), 'jwk', $payload);
+        $response = $this->internals->getResponse();
         if (!isset($this->lastRequest->responseHeaders['location'][0])) {
             throw new UnexpectedResponse('No `location` response header');
         }
-        $account = new Account($this->entrails, $this->lastRequest->responseHeaders['location'][0], $response);
+        $account = new Account($this->internals, $this->lastRequest->responseHeaders['location'][0], $response);
         $this->accountUrl = $account->url;
         return $account;
     }
@@ -149,7 +149,7 @@ class LetsEncrypt
                 throw new Exception('No account url');
             }
         }
-        $result = $this->entrails->getAccount($accountUrl);
+        $result = $this->internals->getAccount($accountUrl);
         return $result;
     }
 
@@ -166,12 +166,12 @@ class LetsEncrypt
         foreach ($domains as $domain) {
             $payload['identifiers'][] = ['type' => 'dns', 'value' => $domain];
         }
-        $this->entrails->postWithPayload($this->getDirectory('newOrder'), $payload, 'kid');
-        $response = $this->entrails->getResponse();
+        $this->internals->sendRequest($this->getDirectory('newOrder'), 'kid', $payload);
+        $response = $this->internals->getResponse();
         if (!isset($this->lastRequest->responseHeaders['location'][0])) {
             throw new UnexpectedResponse('No order Location header in server response. http_code=' . $this->lastRequest->responseCode);
         }
-        $result = new Order($this->entrails, $this->lastRequest->responseHeaders['location'][0], $response);
+        $result = new Order($this->internals, $this->lastRequest->responseHeaders['location'][0], $response);
         return $result;
     }
 
@@ -182,7 +182,7 @@ class LetsEncrypt
      */
     public function getOrder($orderUrl)
     {
-        $result = $this->entrails->getOrder($orderUrl);
+        $result = $this->internals->getOrder($orderUrl);
         return $result;
     }
 
@@ -331,22 +331,22 @@ class LetsEncrypt
             if (empty($certificate->chain[0])) {
                 throw new Exception('Nothing at index #0 of certificate chain');
             }
-            $der = LetsEncryptEntrails::pemToDer($certificate->chain[0]);
+            $der = LetsEncryptInternals::pemToDer($certificate->chain[0]);
         } elseif (is_string($certificate)) {
-            $der = LetsEncryptEntrails::pemToDer($certificate);
+            $der = LetsEncryptInternals::pemToDer($certificate);
         } else {
             throw new Exception('Invalid type of $certificate argument');
         }
 
         $payload = [
-            'certificate' => LetsEncryptEntrails::b64_urlencode($der),
+            'certificate' => LetsEncryptInternals::b64_urlencode($der),
         ];
         if ($reason !== static::REVOCATION_REASON_UNSPECIFIED) {
             $payload['reason'] = $reason;
         }
 
-        $this->entrails->postWithPayload($this->getDirectory('revokeCert'), $payload, 'kid');
-        $this->entrails->checkForError();
+        $this->internals->sendRequest($this->getDirectory('revokeCert'), 'kid', $payload);
+        $this->internals->checkForError();
     }
 
     public function deactivateVerification(array $domains)

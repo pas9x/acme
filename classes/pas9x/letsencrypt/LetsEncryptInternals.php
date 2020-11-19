@@ -7,7 +7,7 @@ use \phpseclib\Crypt\Hash;
 use \phpseclib\Crypt\RSA;
 use \phpseclib\File\X509;
 
-class LetsEncryptEntrails
+class LetsEncryptInternals
 {
     const PEM_CERTIFICATE_REQUEST = 'CERTIFICATE REQUEST';
     const PEM_PRIVATE_KEY = 'PRIVATE KEY';
@@ -104,16 +104,17 @@ class LetsEncryptEntrails
 
     /**
      * @param string $url
-     * @param string $signWith
-     * @param array $payloadConfig
+     * @param $signWith
+     * @param array|object|null $payload
      * @return array
      * @throws Exception
      */
-    public function formatRequest($url, $signWith, array $payloadConfig)
+    public function formatRequest($url, $signWith, $payload = null)
     {
         if (empty($this->le->accountKeys)) {
             throw new Exception('No account private key. ' . get_class($this->le) . ' $accountKeys property is empty.');
         }
+
         $protected = [
             'alg' => 'RS256',
             'url' => $url,
@@ -131,13 +132,12 @@ class LetsEncryptEntrails
         }
         $protected_b64 = static::b64_urlencode(json_encode($protected));
 
-        if ($payloadConfig['format'] === 'b64json') {
-            $payload_b64 = self::b64_urlencode(json_encode($payloadConfig['payload']));
-        } elseif ($payloadConfig['format'] === 'empty_string') {
+        if ($payload === null) {
             $payload_b64 = '';
         } else {
-            throw new Exception('Invalid value of $payloadConfig[format]');
+            $payload_b64 = self::b64_urlencode(json_encode($payload));
         }
+
         $signed = $this->le->accountKeys->rsa->sign($protected_b64 . '.' . $payload_b64);
         $signed_b64 = static::b64_urlencode($signed);
         $result = [
@@ -148,20 +148,14 @@ class LetsEncryptEntrails
         return $result;
     }
 
-    public function postWithPayload($url, $payload, $signWith)
+    /**
+     * @param string $url
+     * @param string $signWith
+     * @param null|array|object $payload
+     */
+    public function sendRequest($url, $signWith, $payload = null)
     {
-        $format = 'b64json';
-        $request = $this->formatRequest($url, $signWith, compact('format', 'payload'));
-        $postdata = json_encode($request, JSON_PRETTY_PRINT);
-        $curl = $this->getCurl($url);
-        $curl->requestHeaders['Content-Type'] = 'application/jose+json';
-        $curl->post($postdata);
-        $curl->execute();
-    }
-
-    public function postWithoutPayload($url, $signWith)
-    {
-        $request = $this->formatRequest($url, $signWith, ['format' => 'empty_string']);
+        $request = $this->formatRequest($url, $signWith, $payload);
         $postdata = json_encode($request, JSON_PRETTY_PRINT);
         $curl = $this->getCurl($url);
         $curl->requestHeaders['Content-Type'] = 'application/jose+json';
@@ -282,7 +276,7 @@ class LetsEncryptEntrails
         if (!is_subclass_of($objectClass, '\pas9x\letsencrypt\StatusBasedObject')) {
             throw new Exception("$objectClass is not subclass of \pas9x\letsencrypt\StatusBasedObject");
         }
-        $this->postWithoutPayload($objectUrl, 'kid');
+        $this->sendRequest($objectUrl, 'kid');
         $response = $this->getResponse();
         $result = new $objectClass($this, $objectUrl, $response);
         return $result;
@@ -372,7 +366,7 @@ class LetsEncryptEntrails
         return $result;
     }
 
-    public static function pemToDer($pem)
+    public static function removeDash($pem)
     {
         $lines = explode("\n", static::normalizeEol($pem));
         foreach ($lines as $index => $line) {
@@ -396,7 +390,12 @@ class LetsEncryptEntrails
                 throw new Exception('Invalid PEM format (4)');
             }
         }
-        $der_b64 = implode('', $lines);
+        return implode('', $lines);
+    }
+
+    public static function pemToDer($pem)
+    {
+        $der_b64 = static::removeDash($pem);
         $result = base64_decode($der_b64);
         return $result;
     }
@@ -488,7 +487,7 @@ class LetsEncryptEntrails
      */
     public function saveAccount(array $newFields)
     {
-        $this->postWithPayload($this->le->accountUrl, $newFields, 'kid');
+        $this->sendRequest($this->le->accountUrl, 'kid', $newFields);
         $response = $this->getResponse();
         $accountUpdated = new Account($this, $this->le->accountUrl, $response);
         return $accountUpdated;

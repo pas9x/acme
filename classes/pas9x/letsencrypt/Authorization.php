@@ -30,7 +30,7 @@ class Authorization extends StatusBasedObject
             if (empty($challengeInfo['url'])) {
                 throw new Exception('Challenge has no url');
             }
-            $result[] = new Challenge($this->entrails, $challengeInfo['url'], $challengeInfo);
+            $result[] = new Challenge($this->internals, $challengeInfo['url'], $challengeInfo);
         }
         return $result;
     }
@@ -58,9 +58,9 @@ class Authorization extends StatusBasedObject
 
     public function deactivate()
     {
-        $this->entrails->postWithPayload($this->url, ['status' => 'deactivated'], 'kid');
-        $response = $this->entrails->getResponse();
-        $authorizationUpdated = new Authorization($this->entrails, $this->url, $response);
+        $this->internals->sendRequest($this->url, 'kid', ['status' => 'deactivated']);
+        $response = $this->internals->getResponse();
+        $authorizationUpdated = new Authorization($this->internals, $this->url, $response);
         $this->refresh($authorizationUpdated);
     }
 }
