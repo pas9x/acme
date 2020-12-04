@@ -1,0 +1,23 @@
+{
+    "name": "pas9x/acme",
+    "description": "ACME PHP Library",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "pas9x",
+            "homepage": "https://github.com/pas9x/acme"
+        }
+    ],
+    "minimum-stability": "stable",
+    "autoload": {
+        "psr-4": {
+            "pas9x\\": "../src/pas9x"
+        }
+    },
+    "require": {
+        "php" : "~7.0",
+        "phpseclib/phpseclib": "~2.0",
+        "mdanter/ecc": "^0.5.2"
+    }
+}

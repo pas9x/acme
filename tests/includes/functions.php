@@ -1,6 +1,8 @@
 <?php
 
-function stdout($text)
+use \pas9x\acme\ACME;
+
+function stdout(string $text)
 {
     $text = strval($text);
     $len = strlen($text);
@@ -8,7 +10,7 @@ function stdout($text)
     return ($bytesWrited === $len);
 }
 
-function stderr($text)
+function stderr(string $text)
 {
     $text = strval($text);
     $len = strlen($text);
@@ -16,26 +18,13 @@ function stderr($text)
     return ($bytesWrited === $len);
 }
 
-function fatal($text, $exitCode = 1)
+function fatal(string $text, int $exitCode = 1)
 {
     stderr($text);
     exit(intval($exitCode));
 }
 
-/**
- * @param null|callable $newHandler
- * @return null|callable
- */
-function testErrorHandler($newHandler = null)
-{
-    static $errorHandler = null;
-    if (func_num_args() > 0) {
-        $errorHandler = $newHandler;
-    }
-    return $errorHandler;
-}
-
-function getConstName($errorCode)
+function getConstName(int $errorCode): ?string
 {
     static $names = null;
     if ($names === null) {
@@ -57,43 +46,37 @@ function getConstName($errorCode)
         if (defined('E_USER_DEPRECATED')) $names[E_USER_DEPRECATED] = 'E_USER_DEPRECATED';
         if (defined('E_ALL')) $names[E_ALL] = 'E_ALL';
     }
-    return isset($names[$errorCode]) ? $names[$errorCode] : null;
+    return $names[$errorCode] ?? null;
 }
 
-function baseErrorHandler($errno, $errstr, $errfile, $errline)
+function errorHandler(int $errno, string $errstr, string $errfile, int $errline)
 {
-    $testHandler = testErrorHandler();
-    if (is_callable($testHandler)) {
-        $testHandler($errno, $errstr, $errfile, $errline);
-    } else {
-        if (error_reporting() === 0) {
-            return;
-        }
-        if ($errno === E_DEPRECATED) {
-            return;
-        }
-        $constName = getConstName($errno);
-        $errorType = is_null($constName) ? "Error $errno" : $constName;
-        $message = "$errorType: $errstr\n";
-        $message .= "File: $errfile:$errline\n";
-        stderr('[' . date('H:i:s') . '] ' .  $message);
-        logError($message);
+    if (error_reporting() === 0) {
+        return;
     }
+    /*
+    if ($errno === E_DEPRECATED) {
+        return;
+    }
+    */
+    $constName = getConstName($errno);
+    $errorType = is_null($constName) ? "Error $errno" : $constName;
+    $message = "$errorType: $errstr\n";
+    $message .= "File: $errfile:$errline\n";
+    stderr('[' . date('H:i:s') . '] ' .  $message);
+    logError($message);
 }
 
-/**
- * @param Exception|Throwable $exception
- */
-function exceptionHandler($exception)
+function exceptionHandler(Throwable $exception)
 {
     $message = 'Uncaught ' .  trim($exception->__toString()) . "\n";
     logError($message);
     fatal($message);
 }
 
-function logError($errorMessage, $details = null)
+function logError(string $errorMessage, $details = null)
 {
-    $fh = null;
+    static $fh = null;
     $logFile = __DIR__ . '/../error.log';
     if ($fh === null) {
         $fh = fopen($logFile, 'a');
@@ -111,54 +94,56 @@ function logError($errorMessage, $details = null)
         fatal("Failed to write $logFile.\n");
     }
 }
-
-function arrayPath($path, $array, $delimiter = '.')
+function getConfig(string $parameter, $defaultValue = null)
 {
-    $levels = explode($delimiter, $path);
-    $levelsCount = count($levels);
-    $currentThread = $array;
-    $pastLevels = [];
-    for ($levelNumber = 0; $levelNumber < $levelsCount; $levelNumber++) {
-        $level = $levels[$levelNumber];
-        $pastLevels[] = $level;
-        if (array_key_exists($level, $currentThread)) {
-            $currentThread = $currentThread[$level];
-            if (!is_array($currentThread)) {
-                if (isset($levels[$levelNumber + 1])) {
-                    $strPastLevels = implode($delimiter, $pastLevels);
-                    throw new ArrayPathNotFound("Node $strPastLevels is not an array", $strPastLevels);
-                }
-            }
-        } else {
-            $strPastLevels = implode($delimiter, $pastLevels);
-            $e = new ArrayPathNotFound("Array node $strPastLevels not found", $strPastLevels);
-            $e->notfound = $path;
-            throw $e;
-        }
-    }
-    return $currentThread;
-}
-
-function fullConfig(array $newConfig = null)
-{
+    /** @var Config $config */
     static $config = null;
-    if ($newConfig !== null) {
-        $config = $newConfig;
-    }
-    return $config;
-}
 
-function getConfig($path, $defaultValue = null)
-{
-    $config = fullConfig();
-    try {
-        $value = arrayPath($path, $config);
-        return $value;
-    } catch (ArrayPathNotFound $e) {
-        if (func_num_args() > 1) {
-            return $defaultValue;
+    if ($config === null) {
+        $fileName = dirname(__DIR__) . '/config.php';
+        if (file_exists($fileName)) {
+            $config = Config::loadFromFile($fileName);
         } else {
-            throw new Exception("Config parameter $path not found");
+            $config = new Config([]);
         }
     }
+
+    return call_user_func_array([$config, 'get'], func_get_args());
+}
+
+function runScript(string $scriptFile)
+{
+    static $php = null;
+    if ($php === null) {
+        if (!defined('PHP_BINARY')) {
+            throw new Exception('No PHP_BINARY constant');
+        }
+        if (!file_exists(PHP_BINARY)) {
+            throw new Exception(PHP_BINARY . ' does not exist');
+        }
+        if (!is_file(PHP_BINARY)) {
+            throw new Exception(PHP_BINARY . ' not a file');
+        }
+        if (!is_executable(PHP_BINARY)) {
+            throw new Exception(PHP_BINARY . ' not executable');
+        }
+        $php = PHP_BINARY;
+    }
+    system($php . ' ' . escapeshellarg($scriptFile));
+}
+
+function acmeTestFail(Throwable $e, ACME $acme)
+{
+    stderr($e->__toString() . "\n");
+    $request = $acme->httpClient()->lastRequest();
+    $response = $acme->httpClient()->lastResponse();
+    if (!empty($request)) {
+        stderr("Last request:\n");
+        stderr($request->__toString() . "\n\n");
+    }
+    if (!empty($response)) {
+        stderr("Last response:\n");
+        stderr($response->__toString() . "\n\n");
+    }
+    exit(1);
 }
