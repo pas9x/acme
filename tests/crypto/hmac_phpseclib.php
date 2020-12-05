@@ -7,7 +7,9 @@ use pas9x\acme\implementations\crypto\HMACSigner;
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-define('CRYPT_HASH_MODE', Hash::MODE_INTERNAL);
+if (!defined('CRYPT_HASH_MODE')) {
+    define('CRYPT_HASH_MODE', Hash::MODE_INTERNAL);
+}
 
 (function () {
     $algs = [

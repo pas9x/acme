@@ -22,6 +22,11 @@ if (file_exists($autoloadFile)) {
     fatal("File $autoloadFile not found. Run composer install first.\n");
 }
 
+define('CSI', "\x1B[");
+define('CS_RED', CSI . '31m');
+define('CS_GREEN', CSI . '32m');
+define('CS_RESET', CSI . '0m');
+
 require __DIR__ . '/Config.php';
 require __DIR__ . '/AcmeTest.php';
 require __DIR__ . '/functions.php';

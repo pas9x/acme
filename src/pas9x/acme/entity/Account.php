@@ -23,7 +23,7 @@ class Account extends Entity
     /** @var Signer $signer */
     protected $accountSigner = null;
 
-    public function __construct($entityUrl, array $rawEntity, ACME $acme, PrivateKey $accountKey, Signer $accountSigner = null)
+    public function __construct(string $entityUrl, array $rawEntity, ACME $acme, PrivateKey $accountKey, Signer $accountSigner = null)
     {
         parent::__construct($entityUrl, $rawEntity);
         $this->acme = $acme;

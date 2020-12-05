@@ -8,3 +8,4 @@ runScript(__DIR__ . '/rsa_openssl.php');
 runScript(__DIR__ . '/rsa_phpseclib.php');
 runScript(__DIR__ . '/hmac_hash.php');
 runScript(__DIR__ . '/hmac_phpseclib.php');
+runScript(__DIR__ . '/sha256.php');

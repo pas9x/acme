@@ -4,6 +4,7 @@ namespace pas9x\acme;
 
 use Exception;
 use LogicException;
+use phpseclib\Crypt\Hash;
 use pas9x\acme\contracts\PrivateKey;
 use pas9x\acme\contracts\Signer;
 use pas9x\acme\implementations\crypto\ECPrivateKey;
@@ -106,5 +107,37 @@ abstract class Utils
             $input .= str_repeat('=', $padlen);
         }
         return base64_decode(strtr($input, '-_', '+/'));
+    }
+
+    public static function sha256(string $data, string $engine = null): string
+    {
+        if ($engine === null) {
+            if (static::engineAvailable(static::ENGINE_HASH)) {
+                $engine = static::ENGINE_HASH;
+            } elseif (static::engineAvailable(static::ENGINE_PHPSECLIB)) {
+                $engine = static::ENGINE_PHPSECLIB;
+            } else {
+                throw new Exception('No engine to make sha256 hash');
+            }
+        } elseif (!static::engineAvailable($engine)) {
+            throw new Exception("Engine `$engine` is not available");
+        }
+
+        if ($engine === Utils::ENGINE_HASH) {
+            $result = hash('sha256', $data, true);
+            return $result;
+        }
+
+        if ($engine === Utils::ENGINE_PHPSECLIB) {
+            $hasher = new Hash('sha256');
+            $result = $hasher->hash($data);
+            if (is_string($result) && $result !== '') {
+                return $result;
+            } else {
+                throw new Exception('phpseclib hash() failed');
+            }
+        }
+
+        throw new LogicException;
     }
 }

@@ -4,6 +4,8 @@ namespace pas9x\acme\entity;
 
 use pas9x\acme\exceptions\AcmeError;
 use pas9x\acme\exceptions\UnexpectedResponse;
+use pas9x\acme\dto\VerificationData;
+use pas9x\acme\Utils;
 
 class Challenge extends Entity
 {
@@ -13,11 +15,19 @@ class Challenge extends Entity
     /** @var string $type */
     protected $type;
 
-    public function __construct($entityUrl, array $rawEntity, Account $account)
+    /** @var VerificationData|null */
+    protected $verificationData = null;
+
+    public function __construct(string $entityUrl, array $rawEntity, Account $account)
     {
         parent::__construct($entityUrl, $rawEntity);
         $this->account = $account;
         $this->refresh($rawEntity);
+    }
+
+    public function type(): string
+    {
+        return $this->getAttribute('type');
     }
 
     public function token(): ?string
@@ -57,6 +67,7 @@ class Challenge extends Entity
 
     public function refresh(array $rawEntity = null)
     {
+        $this->verificationData = null;
         if ($rawEntity === null) {
             $rawEntity = $this->account->internals()->getRawEntity($this->url());
         }
@@ -70,6 +81,19 @@ class Challenge extends Entity
         }
 
         $this->type = $type;
+    }
+
+    public function verificationData(): VerificationData
+    {
+        if ($this->verificationData === null) {
+            $thumbprint_b64 = Utils::b64_urlencode(Utils::sha256($this->account->accountKey()->getPublicKey()->thumbprint()));
+            $keyAuthorization = $this->getAttribute('token') . '.' . $thumbprint_b64;
+            $fileUri = '/.well-known/acme-challenge/' . $this->getAttribute('token');
+            $fileContent = $keyAuthorization;
+            $txtRecord = Utils::b64_urlencode(Utils::sha256($keyAuthorization));
+            $this->verificationData = new VerificationData($fileUri, $fileContent, $txtRecord);
+        }
+        return $this->verificationData;
     }
 
     /** @return string[] */

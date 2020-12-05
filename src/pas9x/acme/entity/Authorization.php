@@ -15,7 +15,7 @@ class Authorization extends Entity
     /** @var Challenge[] */
     protected $challenges = null;
 
-    public function __construct($entityUrl, array $rawEntity, Account $account)
+    public function __construct(string $entityUrl, array $rawEntity, Account $account)
     {
         parent::__construct($entityUrl, $rawEntity);
         $this->refresh($rawEntity);

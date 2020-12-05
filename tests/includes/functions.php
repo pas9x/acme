@@ -18,6 +18,14 @@ function stderr(string $text)
     return ($bytesWrited === $len);
 }
 
+function readln(string $prompt = null): string
+{
+    if ($prompt !== null && $prompt !== '') {
+        stdout($prompt);
+    }
+    return fgets(STDIN);
+}
+
 function fatal(string $text, int $exitCode = 1)
 {
     stderr($text);
@@ -130,20 +138,4 @@ function runScript(string $scriptFile)
         $php = PHP_BINARY;
     }
     system($php . ' ' . escapeshellarg($scriptFile));
-}
-
-function acmeTestFail(Throwable $e, ACME $acme)
-{
-    stderr($e->__toString() . "\n");
-    $request = $acme->httpClient()->lastRequest();
-    $response = $acme->httpClient()->lastResponse();
-    if (!empty($request)) {
-        stderr("Last request:\n");
-        stderr($request->__toString() . "\n\n");
-    }
-    if (!empty($response)) {
-        stderr("Last response:\n");
-        stderr($response->__toString() . "\n\n");
-    }
-    exit(1);
 }

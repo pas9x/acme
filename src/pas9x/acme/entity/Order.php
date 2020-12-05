@@ -20,7 +20,7 @@ class Order extends Entity
     /** @var array $authorizations */
     protected $authorizations = null;
 
-    public function __construct($entityUrl, array $rawEntity, Account $account)
+    public function __construct(string $entityUrl, array $rawEntity, Account $account)
     {
         parent::__construct($entityUrl, $rawEntity);
         $this->account = $account;

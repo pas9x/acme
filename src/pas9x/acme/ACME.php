@@ -24,10 +24,11 @@ class ACME
      * ZeroSSL CA. No test server. External account binding required.
      * https://acme.zerossl.com/v2/DV90
      *
-     * Buypass CS. No external account binding required.
+     * Buypass CA. No external account binding required.
      * Production server: https://api.buypass.com/acme/directory
      * Test server: https://api.test4.buypass.no/acme/directory
      *
+     * Let's Encrypt production server: https://acme-v02.api.letsencrypt.org/directory
      * Let's Encrypt test server: https://acme-staging-v02.api.letsencrypt.org/directory
      *
      * @var string $directoryUrl
