@@ -1,11 +1,9 @@
 <?php
 
-use pas9x\acme\ACME_internals;
 use pas9x\acme\implementations\crypto\ECPrivateKeyGenerator;
 use pas9x\acme\implementations\crypto\ECPrivateKey;
 use pas9x\acme\implementations\crypto\ECPublicKey;
 use pas9x\acme\implementations\crypto\ECSigner;
-use pas9x\acme\Utils;
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
@@ -17,7 +15,7 @@ require_once __DIR__ . '/../includes/bootstrap.php';
     ];
 
     foreach ($curves as $curve) {
-        $generator = new ECPrivateKeyGenerator($curve, Utils::ENGINE_OPENSSL);
+        $generator = new ECPrivateKeyGenerator($curve);
 
         stdout("Generate $curve private key (openssl)...\n");
         $privateKey = $generator->generatePrivateKey();
@@ -30,12 +28,12 @@ require_once __DIR__ . '/../includes/bootstrap.php';
         stdout("OK\n");
 
         stdout("Load $curve private key (openssl)...\n");
-        $privateKey = new ECPrivateKey($privateKeyPem, Utils::ENGINE_OPENSSL);
+        $privateKey = new ECPrivateKey($privateKeyPem);
         stdout("OK\n");
 
         stdout("Load $curve public key (openssl)...\n");
-        $publicKey = new ECPublicKey($publicKeyPem, Utils::ENGINE_OPENSSL);
-        stdout($publicKey->thumbprint() . "\n");
+        $publicKey = new ECPublicKey($publicKeyPem);
+        //stdout($publicKey->thumbprint() . "\n");
         stdout("OK\n");
 
         $algs = [

@@ -17,7 +17,6 @@ abstract class Utils
     const ENGINE_OPENSSL = 'openssl';
     const ENGINE_PHPSECLIB = 'phpseclib';
     const ENGINE_HASH = 'hash';
-    const ENGINE_ECLIB = 'eclib';
     
     /** @var array|null */
     protected static $engines = null;
@@ -35,9 +34,6 @@ abstract class Utils
             }
             if (class_exists(\phpseclib\Crypt\RSA::class)) {
                 self::$engines[] = self::ENGINE_PHPSECLIB;
-            }
-            if (extension_loaded('gmp') && class_exists(\Mdanter\Ecc\EccFactory::class)) {
-                self::$engines[] = self::ENGINE_ECLIB;
             }
             if (extension_loaded('hash')) {
                 self::$engines[] = self::ENGINE_HASH;
@@ -60,7 +56,7 @@ abstract class Utils
     public static function loadPrivateKey(string $privateKeyPem, string $engine = null): PrivateKey
     {
         if (preg_match('/EC PRIVATE KEY/', $privateKeyPem)) {
-            return new ECPrivateKey($privateKeyPem, $engine);
+            return new ECPrivateKey($privateKeyPem);
         } else {
             return new RSAPrivateKey($privateKeyPem, $engine);
         }
