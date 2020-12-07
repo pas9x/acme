@@ -21,6 +21,9 @@ abstract class Utils
     /** @var array|null */
     protected static $engines = null;
 
+    /** @var string|null */
+    protected static $tmpDir = null;
+
     /**
      * @param bool $useCache
      * @return string[]
@@ -135,5 +138,82 @@ abstract class Utils
         }
 
         throw new LogicException;
+    }
+
+    public static function getTmpDir(): string
+    {
+        if (static::$tmpDir === null) {
+            static::$tmpDir = static::detectTmpDir();
+            if (static::$tmpDir === null) {
+                throw new Exception('Failed to detect temporary directory');
+            }
+        }
+        return static::$tmpDir;
+    }
+
+
+    public static function detectTmpDir(): ?string
+    {
+        $tmpDir = @sys_get_temp_dir();
+        if (!empty($tmpDir) && is_dir($tmpDir) && is_writable($tmpDir)) {
+            return $tmpDir;
+        }
+        $tmpDir = ini_get('upload_tmp_dir');
+        if (!empty($tmpDir) && is_dir($tmpDir) && is_writable($tmpDir)) {
+            return $tmpDir;
+        }
+        $tmpDir = ini_get('session.save_path');
+        if (!empty($tmpDir) && is_dir($tmpDir) && is_writable($tmpDir)) {
+            return $tmpDir;
+        }
+        $tmpDir = '/tmp';
+        if (is_dir($tmpDir) && is_writable($tmpDir)) {
+            return $tmpDir;
+        }
+        return null;
+    }
+
+    public static function filePutContents(string $fileName, string $content)
+    {
+        if (file_exists($fileName)) {
+            if (is_dir($fileName)) {
+                throw new Exception($fileName . ' is directory');
+            }
+            if (!is_file($fileName)) {
+                throw new Exception($fileName . ' is not a regular file');
+            }
+            if (!is_writable($fileName)) {
+                throw new Exception("File $fileName is not writable");
+            }
+        }
+        $bytesWritten = file_put_contents($fileName, $content);
+        if (!is_int($bytesWritten)) {
+            throw new Exception('Failed to write file ' . $fileName);
+        }
+        $contentSize = strlen($content);
+        if ($bytesWritten !== $contentSize) {
+            throw new Exception("Content size is $contentSize bytes, but only $bytesWritten written");
+        }
+    }
+
+    public static function randomString(int $length): string
+    {
+        $result = '';
+        for ($j = 0; $j < $length; $j++) {
+            switch (mt_rand(0, 2)):
+                case 0:
+                    $result .= chr(mt_rand(97, 122));
+                    break;
+                case 1:
+                    $result .= chr(mt_rand(65, 90));
+                    break;
+                case 2:
+                    $result .= chr(mt_rand(48, 57));
+                    break;
+                default:
+                    throw new LogicException;
+            endswitch;
+        }
+        return $result;
     }
 }
