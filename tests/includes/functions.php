@@ -119,6 +119,14 @@ function getConfig(string $parameter, $defaultValue = null)
     return call_user_func_array([$config, 'get'], func_get_args());
 }
 
+function requireConfig()
+{
+    $file = dirname(__DIR__) . '/config.php';
+    if (!file_exists($file)) {
+        fatal("File $file not found. Create it first from config.example.php.\n");
+    }
+}
+
 function runScript(string $scriptFile)
 {
     static $php = null;

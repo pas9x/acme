@@ -6,9 +6,8 @@ use pas9x\acme\ACME;
 use pas9x\acme\Utils;
 use pas9x\acme\entity\Account;
 use pas9x\acme\entity\Order;
-use pas9x\acme\entity\Authorization;
-use pas9x\acme\entity\Challenge;
 use pas9x\acme\dto\ExternalAccountBinding;
+use pas9x\acme\dto\Certificate;
 
 class AcmeTest
 {
@@ -61,7 +60,7 @@ class AcmeTest
 
     public function registerAccount(): Account
     {
-        $this->log('testRegisterAccount()...');
+        $this->log('registerAccount()...');
         $acme = $this->getAcme();
 
         if (isset($caSettings['externalAccountBinding'])) {
@@ -92,7 +91,7 @@ class AcmeTest
                     'privateKey' => $this->account->accountKey()->getPrivateKeyPem(),
                     'raw' => $this->account->raw(),
                 ];
-                file_put_contents($accountFile, json_encode($accountInfo, JSON_PRETTY_PRINT));
+                Utils::filePutContents($accountFile, json_encode($accountInfo, JSON_PRETTY_PRINT));
             }
         }
         return $this->account;
@@ -100,12 +99,14 @@ class AcmeTest
 
     public function newOrder(): Order
     {
+        $this->log('newOrder()...');
         $domains = $this->caSettings['domains'];
         if (empty($domains)) {
             throw new Exception('No domains in CA settings');
         }
         $account = $this->getAccount(false);
         $order = $account->newOrder($domains);
+        $this->log('OK');
         return $order;
     }
 
@@ -123,9 +124,74 @@ class AcmeTest
                     'url' => $this->order->url(),
                     'raw' => $this->order->raw(),
                 ];
-                file_put_contents($orderFile, json_encode($orderInfo, JSON_PRETTY_PRINT));
+                Utils::filePutContents($orderFile, json_encode($orderInfo, JSON_PRETTY_PRINT));
             }
         }
         return $this->order;
+    }
+
+    public function registerCertificate(): Certificate
+    {
+        $this->log('registerCertificate()...');
+        $order = $this->getOrder(false);
+        $result = $order->registerCertificate();
+        $this->log('OK');
+        return $result;
+    }
+
+    public function getCertificate(): Certificate
+    {
+        $certFile = __DIR__ . "/../{$this->ca}_cert.json";
+        if (file_exists($certFile)) {
+            $certInfo = Utils::jsonDecode(file_get_contents($certFile));
+            return new Certificate($certInfo['certificate'], $certInfo['caChain']);
+        }
+
+        $order = $this->getOrder(false);
+        $certUrl = $order->certificate();
+        if ($certUrl === null) {
+            $cert = $this->registerCertificate();
+        } else {
+            $cert = $order->downloadCertificate();
+        }
+        $certInfo = [
+            'certificate' => $cert->certificate(),
+            'caChain' => $cert->caCertificateChain(),
+        ];
+        Utils::filePutContents($certFile, json_encode($certInfo, JSON_PRETTY_PRINT));
+        return $cert;
+    }
+
+    public function revokeCertificate()
+    {
+        $cert = $this->getCertificate();
+        $this->getAccount(false)->revokeCert($cert->certificate());
+        $certFile = __DIR__ . "/../{$this->ca}_cert.json";
+        if (file_exists($certFile)) {
+            unlink($certFile);
+        }
+    }
+
+    public function keyChange()
+    {
+        $account = $this->getAccount(false);
+        $account->keyChange();
+        $accountFile = __DIR__ . "/../{$this->ca}_account.json";
+        $accountInfo = [
+            'url' => $this->account->url(),
+            'privateKey' => $account->accountKey()->getPrivateKeyPem(),
+            'raw' => $account->raw(),
+        ];
+        Utils::filePutContents($accountFile, json_encode($accountInfo, JSON_PRETTY_PRINT));
+    }
+
+    public function deactivate()
+    {
+        $account = $this->getAccount(false);
+        $accountFile = __DIR__ . "/../{$this->ca}_account.json";
+        $account->deactivate();
+        if (file_exists($accountFile)) {
+            unlink($accountFile);
+        }
     }
 }

@@ -2,8 +2,6 @@
 
 namespace pas9x\acme;
 
-use Exception;
-use LogicException;
 use pas9x\acme\dto\ExternalAccountBinding;
 use pas9x\acme\implementations\crypto\RSAPrivateKey;
 use pas9x\acme\implementations\crypto\RSASigner;
@@ -119,6 +117,7 @@ class ACME
             'jwk' => $accountPrivateKey->getPublicKey()->getJWK(),
             'nonce' => $this->internals()->getNonce(),
             'url' => $url,
+            'contact' => [],
         ];
 
         $payload = [
@@ -126,7 +125,7 @@ class ACME
             'contact' => [],
         ];
         if ($email !== null) {
-            $protected['contact'][] = $email;
+            $protected['contact'][] = "mailto:$email";
         }
 
         if ($eab !== null) {

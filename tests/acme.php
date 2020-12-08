@@ -6,7 +6,17 @@ $testName = $argv[1] ?? null;
 $ca = $argv[2] ?? null;
 
 $usage  = "Usage: php acme.php <test> <ca>\n";
-$usage .= "Available tests: register_account, new_order, get_order, validate_http_01, validate_dns_01, all\n";
+$usage .= "Available tests:\n";
+$usage .= "\tregister_account\n";
+$usage .= "\tnew_order\n";
+$usage .= "\tget_order\n";
+$usage .= "\tvalidate_http_01\n";
+$usage .= "\tvalidate_dns_01\n";
+$usage .= "\tregister_certificate\n";
+$usage .= "\tdownload_certificate\n";
+$usage .= "\tkey_change\n";
+$usage .= "\tupdate_contacts\n";
+$usage .= "\tdeactivate\n";
 $usage .= "Available CA: " . implode(', ', array_keys(getConfig('ca', []))) . "\n";
 
 if ($testName === null) {
@@ -20,6 +30,8 @@ if ($ca === null) {
     stdout($usage);
     exit;
 }
+
+requireConfig();
 
 $tester = new AcmeTest($ca);
 $red = CS_RED;
@@ -87,6 +99,34 @@ try {
             $selectedChallenge->validate();
         }
         stdout("Wait 15 seconds and run get_order to check order status.\n");
+    }
+
+    elseif ($testName === 'register_certificate') {
+        $order = $tester->getOrder(false);
+        $order->registerCertificate();
+        print_r($order->raw());
+    }
+
+    elseif ($testName === 'download_certificate') {
+        $order = $tester->getOrder(false);
+        $cert = $order->downloadCertificate();
+    }
+
+    elseif ($testName === 'revoke_certificate') {
+        $tester->revokeCertificate();
+    }
+
+    elseif ($testName === 'key_change') {
+        $tester->keyChange();
+    }
+
+    elseif ($testName === 'update_contacts') {
+        $account = $tester->getAccount(false);
+        $account->updateContacts(['mailto:spam@pascalhp.net']);
+    }
+
+    elseif ($testName === 'deactivate') {
+        $tester->deactivate();
     }
 
     else {

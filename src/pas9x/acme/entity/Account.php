@@ -7,10 +7,37 @@ use pas9x\acme\ACME;
 use pas9x\acme\contracts\PrivateKey;
 use pas9x\acme\contracts\Signer;
 use pas9x\acme\dto\OrderIdentifier;
+use pas9x\acme\implementations\crypto\RSAPrivateKey;
+use pas9x\acme\implementations\crypto\RSAPrivateKeyGenerator;
+use pas9x\acme\implementations\crypto\RSASigner;
 use pas9x\acme\Utils;
 
 class Account extends Entity
 {
+    const REVOCATION_REASON_UNSPECIFIED = 0;
+    const REVOCATION_REASON_KEY_COMPROMISE = 1;
+    const REVOCATION_REASON_CA_COMPROMISE = 2;
+    const REVOCATION_REASON_AFFILIATION_CHANGED = 3;
+    const REVOCATION_REASON_SUPERSEDED = 4;
+    const REVOCATION_REASON_CESSATION_OF_OPERATION = 5;
+    const REVOCATION_REASON_CERTIFICATE_HOLD = 6;
+    const REVOCATION_REASON_REMOVE_FROM_CRL = 8;
+    const REVOCATION_REASON_PRIVILEGE_WITHDRAWN = 9;
+    const REVOCATION_REASON_AA_COMPROMISE = 10;
+
+    protected const REVOCATION_REASONS = [
+        self::REVOCATION_REASON_UNSPECIFIED,
+        self::REVOCATION_REASON_KEY_COMPROMISE,
+        self::REVOCATION_REASON_CA_COMPROMISE,
+        self::REVOCATION_REASON_AFFILIATION_CHANGED,
+        self::REVOCATION_REASON_SUPERSEDED,
+        self::REVOCATION_REASON_CESSATION_OF_OPERATION,
+        self::REVOCATION_REASON_CERTIFICATE_HOLD,
+        self::REVOCATION_REASON_REMOVE_FROM_CRL,
+        self::REVOCATION_REASON_PRIVILEGE_WITHDRAWN,
+        self::REVOCATION_REASON_AA_COMPROMISE,
+    ];
+
     /** @var ACME $acme */
     private $acme;
 
@@ -105,6 +132,7 @@ class Account extends Entity
         $rawOrderEntity = $this->acme()->internals()->parseResponse(true);
         $orderUrl = $this->acme()->internals()->responseHeader('Location', true);
         $order = new Order($orderUrl, $rawOrderEntity, $this);
+        $order->primaryDomain($payload['identifiers'][0]['value']);
         return $order;
     }
 
@@ -127,6 +155,80 @@ class Account extends Entity
         $rawChallenge = $this->internals()->getRawEntity($url);
         $challenge = new Challenge($url, $rawChallenge, $this);
         return $challenge;
+    }
+
+    public function revokeCert(string $certificatePem, int $reason = self::REVOCATION_REASON_UNSPECIFIED)
+    {
+        if (!in_array($reason, static::REVOCATION_REASONS)) {
+            throw new InvalidArgumentException('Invalid revocation reason: ' . $reason);
+        }
+        $url = $this->acme()->internals()->directoryItem('revokeCert');
+        $payload = [
+            'certificate' => Utils::b64_urlencode(Utils::pemToDer($certificatePem)),
+            'reason' => $reason,
+        ];
+        $this->internals()->joseRequest($url, $payload);
+        $this->acme()->internals()->parseResponse(false);
+    }
+
+    public function keyChange(PrivateKey $newKey = null, Signer $newSigner = null)
+    {
+        if ($newKey === null) {
+            $generator = new RSAPrivateKeyGenerator(4096);
+            /** @var RSAPrivateKey $newKey */
+            $newKey = $generator->generatePrivateKey();
+            $newSigner = new RSASigner($newKey, RSASigner::ALG_RS256);
+        } else {
+            if ($newSigner === null) {
+                $newSigner = Utils::autodetectSigner($newKey);
+            }
+        }
+        $newPublicKey = $newKey->getPublicKey();
+
+        $url = $this->acme()->internals()->directoryItem('keyChange');
+
+        $subprotected = [
+            'alg' => $newSigner->alg(),
+            'jwk' => $newPublicKey->getJWK(),
+            'url' => $url,
+        ];
+        $subprotected_b64 = Utils::b64_urlencode(Utils::jsonEncode($subprotected));
+
+        $subpayload = [
+            'account' => $this->url(),
+            'oldKey' => $this->accountKey()->getPublicKey()->getJWK(),
+        ];
+        $subpayload_b64 = Utils::b64_urlencode(Utils::jsonEncode($subpayload));
+
+        $payload = [
+            'protected' => $subprotected_b64,
+            'payload' => $subpayload_b64,
+            'signature' => Utils::b64_urlencode($newSigner->sign($subprotected_b64 . '.' . $subpayload_b64)),
+        ];
+
+        $this->internals()->joseRequest($url, $payload);
+        $this->acme()->internals()->parseResponse(false);
+        $this->accountKey($newKey);
+        $this->accountSigner($newSigner);
+    }
+
+    public function update(array $fields)
+    {
+        $this->internals()->joseRequest($this->url(), $fields);
+        $this->acme()->internals()->parseResponse(false);
+    }
+
+    /**
+     * @param string[] $contacts
+     */
+    public function updateContacts(array $contacts)
+    {
+        $this->update(['contact' => $contacts]);
+    }
+
+    public function deactivate()
+    {
+        $this->update(['status' => 'deactivated']);
     }
 
     public function refresh(array $rawEntity = null)

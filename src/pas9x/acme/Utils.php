@@ -216,4 +216,45 @@ abstract class Utils
         }
         return $result;
     }
+
+    public static function normalizeEol(string $text): string
+    {
+        $result = str_replace("\r\n", "\n", $text);
+        $result = str_replace("\r", "\n", $result);
+        return $result;
+    }
+
+    public static function removeDash(string $pem): string
+    {
+        $lines = explode("\n", static::normalizeEol($pem));
+        foreach ($lines as $index => $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') unset($lines[$index]);
+        }
+        $lines = array_values($lines);
+        $linesCount = count($lines);
+        if ($linesCount < 3) {
+            throw new Exception('Invalid PEM format (1)');
+        }
+        if (!preg_match('/^\-.+\-$/', $lines[0])) {
+            throw new Exception('Invalid PEM format (2)');
+        }
+        if (!preg_match('/^\-.+\-$/', $lines[$linesCount - 1])) {
+            throw new Exception('Invalid PEM format (3)');
+        }
+        unset($lines[0], $lines[$linesCount - 1]);
+        foreach ($lines as $line) {
+            if (!preg_match('/^[a-zA-Z0-9\+\/\=]+$/', $line)) {
+                throw new Exception('Invalid PEM format (4)');
+            }
+        }
+        return implode('', $lines);
+    }
+
+    public static function pemToDer(string $pem): string
+    {
+        $der_b64 = static::removeDash($pem);
+        $result = base64_decode($der_b64);
+        return $result;
+    }
 }

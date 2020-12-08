@@ -2,7 +2,14 @@
 
 namespace pas9x\acme\entity;
 
+use LogicException;
+use pas9x\acme\dto\Certificate;
 use pas9x\acme\dto\OrderIdentifier;
+use pas9x\acme\contracts\CSR;
+use pas9x\acme\exceptions\UnexpectedResponse;
+use pas9x\acme\implementations\crypto\RSACSR;
+use pas9x\acme\dto\DistinguishedName;
+use pas9x\acme\Utils;
 
 class Order extends Entity
 {
@@ -19,6 +26,9 @@ class Order extends Entity
 
     /** @var array $authorizations */
     protected $authorizations = null;
+
+    /** @var string|null $primaryDomain */
+    protected $primaryDomain = null;
 
     public function __construct(string $entityUrl, array $rawEntity, Account $account)
     {
@@ -41,6 +51,73 @@ class Order extends Entity
     public function notAfter(): ?int
     {
         return $this->notAfter;
+    }
+
+    public function finalize(): string
+    {
+        return $this->getAttribute('finalize');
+    }
+
+    public function certificate(): ?string
+    {
+        return $this->getAttribute('certificate', null);
+    }
+
+    public function primaryDomain(string $newPrimaryDomain = null): string
+    {
+        if ($newPrimaryDomain === null) {
+            $this->primaryDomain = $newPrimaryDomain;
+        }
+        if ($this->primaryDomain === null) {
+            return $this->identifiers()[0]->value();
+        } else {
+            return $this->primaryDomain;
+        }
+    }
+
+    public function registerCertificate(CSR $csr = null)
+    {
+        if ($csr === null) {
+            $dn = new DistinguishedName($this->primaryDomain());
+            $sanDomains = [];
+            foreach ($this->identifiers() as $identifier) {
+                if ($identifier->value() !== $dn->commonName()) {
+                    $sanDomains[] = $identifier->value();
+                }
+            }
+            $csr = RSACSR::generate($dn, $sanDomains);
+        }
+
+        $payload = [
+            'csr' => Utils::b64_urlencode(Utils::pemToDer($csr->getCsrPem())),
+        ];
+        $this->account->internals()->joseRequest($this->finalize(), $payload);
+        $rawOrder = $this->account->acme()->internals()->parseResponse(true);
+        $this->refresh($rawOrder);
+    }
+
+    public function downloadCertificate(): Certificate
+    {
+        $url = $this->certificate();
+        if ($url === null) {
+            if ($this->status() === 'valid') {
+                throw new LogicException('Order status is `valid`, but it has no link to download certificate. You probably need to call registerCertificate() first.');
+            } else {
+                throw new LogicException("Order status is `" . $this->status() . "`. You cannot getCertificate until order status is not `valid`.");
+            }
+        }
+        $this->account->internals()->joseRequest($url);
+        $this->account->acme()->internals()->parseResponse(false);
+        $responseBody = $this->account->acme()->httpClient()->lastResponse()->body();
+        preg_match_all('/\-+[ \t]*BEGIN CERTIFICATE[ \t]*\-+\s+.+\s+\-+[ \t]*END CERTIFICATE[ \t]*\-+(?:\s|$)/siU', $responseBody, $matches);
+        if (!isset($matches[0][0])) {
+            throw new UnexpectedResponse('No certificates returned', $responseBody);
+        }
+        $caChain = $matches[0];
+        $certificate = $caChain[0];
+        array_shift($caChain);
+        $result = new Certificate($certificate, $caChain);
+        return $result;
     }
 
     /**
