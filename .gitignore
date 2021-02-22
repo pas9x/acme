@@ -6,3 +6,4 @@ tests/*.key
 tests/*.crt
 tests/*.log
 tests/test*.php
+tests/config.php

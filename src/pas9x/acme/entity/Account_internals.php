@@ -4,6 +4,7 @@ namespace pas9x\acme\entity;
 
 use pas9x\acme\ACME;
 use pas9x\acme\Utils;
+use pas9x\acme\implementations\http\CurlRequest;
 
 /**
  * @internal
@@ -54,7 +55,8 @@ class Account_internals
     {
         $headers = ['Content-Type' => 'application/jose+json'];
         $jose = Utils::jsonEncode($this->formatRequest($url, $payload));
-        $this->acme->httpClient()->post($url, $jose, $headers);
+        $request = new CurlRequest($url, 'POST', $headers, $jose);
+        $this->acme->internals()->httpRequest($request);
     }
 
     public function getRawEntity(string $url): array

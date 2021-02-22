@@ -2,24 +2,19 @@
 
 namespace pas9x\acme;
 
-use pas9x\acme\contracts\PrivateKey;
-use pas9x\acme\contracts\Signer;
 use Throwable;
-use Exception;
 use RuntimeException;
-use pas9x\acme\dto\Event;
-use pas9x\acme\contracts\HttpClient;
-use pas9x\acme\contracts\HttpRequest;
-use pas9x\acme\contracts\HttpResponse;
-use pas9x\acme\contracts\HttpWatcher;
+use LogicException;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
+use pas9x\acme\implementations\http\CurlRequest;
 use pas9x\acme\exceptions\UnexpectedResponse;
-use pas9x\acme\exceptions\HttpException;
 use pas9x\acme\exceptions\AcmeError;
 
 /**
  * @internal
  */
-class ACME_internals implements HttpWatcher
+class ACME_internals
 {
     /** @var ACME $acme */
     public $acme;
@@ -27,24 +22,77 @@ class ACME_internals implements HttpWatcher
     /** @var null|string */
     public $lastNonce = null;
 
-    /** @var EventListener[] */
-    public $eventListeners = [];
+    /** @var null|RequestInterface */
+    public $lastRequest = null;
+
+    /** @var null|ResponseInterface */
+    public $lastResponse = null;
 
     public function __construct(ACME $acme)
     {
         $this->acme = $acme;
     }
 
+    public function httpRequest(RequestInterface $request)
+    {
+        $this->lastRequest = $request;
+        $this->lastResponse = null;
+        $this->lastResponse = $this->acme->httpClient()->sendRequest($request);
+
+        $nonce = $this->responseHeader('Replay-Nonce');
+        if ($nonce !== null && $nonce !== '') {
+            $this->lastNonce = $nonce;
+        }
+    }
+
+    public function responseHeader(string $name, bool $required = false): ?string
+    {
+        if (empty($this->lastResponse)) {
+            throw new LogicException('responseHeader(): no http-response');
+        }
+
+        $nameL = strtolower($name);
+        $header = $this->lastResponse->getHeader($nameL);
+        $count = count($header);
+
+        $contentType = $this->lastResponse->getHeader('content-type');
+        if (count($contentType) === 1 && isset($contentType[0]) && is_string($contentType[0])) {
+            $contentType = $contentType[0];
+        } else {
+            $contentType = null;
+        }
+
+        if ($count < 1) {
+            if ($required) {
+                $message = "No `$name` response header. responseCode=" . $this->lastResponse->getStatusCode();
+                if (!empty($contentType)) $message .= ', contentType=' . $contentType;
+                throw new UnexpectedResponse($message);
+            } else {
+                return null;
+            }
+        }
+
+        if ($count === 1) {
+            if (isset($header[0]) && is_string($header[0])) {
+                return $header[0];
+            } else {
+                throw new LogicException('getHeader() result is invalid');
+            }
+        }
+
+        throw new RuntimeException("HTTP response has multiple `$name` headers. Don't know which one to return.");
+    }
+
     /**
      * @param string $url
      * @return array
      * @throws UnexpectedResponse
-     * @throws HttpException
      */
     public function getDirectory(string $url): array
     {
-        $response = $this->acme->httpClient()->get($url);
-        $result = Utils::jsonDecode($response->body());
+        $request = new CurlRequest($url, 'GET', []);
+        $this->httpRequest($request);
+        $result = Utils::jsonDecode($this->lastResponse->getBody()->getContents());
         if (is_array($result)) {
             return $result;
         } else {
@@ -61,14 +109,15 @@ class ACME_internals implements HttpWatcher
         if (func_num_args() > 1) {
             return $defaultValue;
         }
-        throw new Exception("No directory item `$item`");
+        throw new RuntimeException("No directory item `$item`");
     }
 
     public function getNonce(): string
     {
         if ($this->lastNonce === null) {
             $url = $this->directoryItem('newNonce');
-            $this->acme->httpClient()->request($url, 'HEAD');
+            $request = new CurlRequest($url, 'HEAD', []);
+            $this->httpRequest($request);
             if ($this->lastNonce === null || $this->lastNonce === '') {
                 throw new RuntimeException('Failed to acquire nonce');
             }
@@ -78,72 +127,30 @@ class ACME_internals implements HttpWatcher
         return $result;
     }
 
-    public function responseHeader(string $name, bool $required = false): ?string
-    {
-        $name = strtolower($name);
-        $response = $this->acme->httpClient()->lastResponse();
-        if (!isset($response->__headers)) {
-            $response->__headers = [];
-            foreach ($response->headers() as $currentName => $currentValues) {
-                $currentName = trim(strtolower($currentName));
-                if ($currentName === '') continue;
-                foreach ($currentValues as $currentValue) {
-                    $response->__headers[$currentName][] = trim($currentValue);
-                }
-            }
-        }
-        if (!isset($response->__headers[$name])) {
-            if ($required === true) {
-                $message = "No `$name` response header. httpCode=" . $response->code();
-                $contentType = $this->responseHeader('Content-Type');
-                if (!empty($contentType)) $message .= ', contentType=' . $contentType;
-                throw new UnexpectedResponse($message);
-            } else {
-                return null;
-            }
-        }
-        if (count($response->__headers[$name]) > 1) {
-            throw new RuntimeException("HTTP response has multiple `$name` headers. Don't know which one to return.");
-        }
-        return $response->__headers[$name][0];
-    }
-
-    public function onRequest(HttpRequest $request, HttpClient $httpClient)
-    {
-        $this->emitEvent(Event::E_HTTP_REQUEST, $request);
-    }
-
-    public function onResponse(HttpResponse $response, HttpClient $httpClient)
-    {
-        $nonce = $this->responseHeader('Replay-Nonce');
-        if ($nonce !== null && $nonce !== '') {
-            $this->lastNonce = $nonce;
-        }
-        $this->emitEvent(Event::E_HTTP_RESPONSE, $response);
-    }
-
     public function joseRequest(string $url, array $jose)
     {
         $headers = ['Content-Type' => 'application/jose+json'];
         $requestBody = Utils::jsonEncode($jose);
-        $this->acme->httpClient()->post($url, $requestBody, $headers);
+        $request = new CurlRequest($url, 'POST', $headers, $requestBody);
+        $this->httpRequest($request);
     }
 
     public function parseResponse(bool $requireJson): ?array
     {
-        $response = $this->acme->httpClient()->lastResponse();
-        $responseCode = $response->code();
+        if (empty($this->lastResponse)) {
+            throw new LogicException('parseResponse(): no http-response');
+        }
+
+        $responseCode = $this->lastResponse->getStatusCode();
         $contentType = $this->responseHeader('Content-Type');
         try {
-            $response = Utils::jsonDecode($response->body());
+            $response = Utils::jsonDecode($this->lastResponse->getBody()->getContents());
         } catch (Throwable $e) {
             if (!$requireJson) {
                 return null;
             }
             $message = 'Failed to parse http response as json. responseCode=' . $responseCode;
-            if (!empty($contentType)) {
-                $message .= ', contentType=' . $contentType;
-            }
+            if (!empty($contentType)) $message .= ', contentType=' . $contentType;
             $message .= ', jsonError=' . $e->getMessage();
             throw new UnexpectedResponse($message);
         }
@@ -160,14 +167,5 @@ class ACME_internals implements HttpWatcher
             throw new AcmeError($type, $detail, $responseCode, $response);
         }
         return $response;
-    }
-
-    public function emitEvent(string $code, $details = null): Event
-    {
-        $event = new Event($code, $details);
-        foreach ($this->eventListeners as $eventListener) {
-            $eventListener->onEvent($event);
-        }
-        return $event;
     }
 }

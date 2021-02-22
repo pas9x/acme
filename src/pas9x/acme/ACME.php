@@ -2,11 +2,11 @@
 
 namespace pas9x\acme;
 
+use Psr\Http\Client\ClientInterface;
 use pas9x\acme\dto\ExternalAccountBinding;
 use pas9x\acme\implementations\crypto\RSAPrivateKey;
 use pas9x\acme\implementations\crypto\RSASigner;
-use pas9x\acme\implementations\http\curl\CurlClient;
-use pas9x\acme\contracts\HttpClient;
+use pas9x\acme\implementations\http\CurlClient;
 use pas9x\acme\entity\Account;
 use pas9x\acme\contracts\PrivateKey;
 use pas9x\acme\contracts\Signer;
@@ -36,7 +36,7 @@ class ACME
     /** @var ACME_internals $internals */
     protected $internals = null;
 
-    /** @var HttpClient $httpClient */
+    /** @var ClientInterface $httpClient */
     protected $httpClient = null;
 
     public function internals(): ACME_internals
@@ -51,6 +51,7 @@ class ACME
     {
         if ($newUrl !== null) {
             $this->directoryUrl = $newUrl;
+            $this->directory = null;
         }
         return $this->directoryUrl;
     }
@@ -67,22 +68,16 @@ class ACME
         return $this->directory;
     }
 
-    public function httpClient(HttpClient $newClient = null): HttpClient
+    public function httpClient(ClientInterface $newClient = null): ClientInterface
     {
         if ($newClient === null) {
             if ($this->httpClient === null) {
                 $this->httpClient = new CurlClient;
-                $this->httpClient->addWatcher($this->internals());
             }
         } else {
             $this->httpClient = $newClient;
         }
         return $this->httpClient;
-    }
-
-    public function addEventListener(EventListener $listener)
-    {
-        $this->internals()->eventListeners[] = $listener;
     }
 
     public function externalAccountRequired(): bool

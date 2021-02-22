@@ -151,7 +151,6 @@ abstract class Utils
         return static::$tmpDir;
     }
 
-
     public static function detectTmpDir(): ?string
     {
         $tmpDir = @sys_get_temp_dir();

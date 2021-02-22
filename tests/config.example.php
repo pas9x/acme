@@ -38,4 +38,7 @@ return [
             ],
         ],
     ],
+    'httpClient' => 'native',
+    //'httpClient' => 'guzzle',
+    //'httpClient' => 'symfony',
 ];

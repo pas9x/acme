@@ -53,6 +53,16 @@ class AcmeTest
         if ($this->acme === null) {
             $acme = new ACME;
             $acme->directoryUrl($this->caSettings['directoryUrl']);
+
+            $httpClientLibrary = getConfig('httpClient', 'native');
+            if ($httpClientLibrary === 'guzzle') {
+                $acme->httpClient(new \GuzzleHttp\Client);
+            } elseif ($httpClientLibrary === 'symfony') {
+                $acme->httpClient(new \Symfony\Component\HttpClient\Psr18Client);
+            } elseif ($httpClientLibrary !== 'native') {
+                throw new Exception('Unknown httpClient library: ' . $httpClientLibrary);
+            }
+
             $this->acme = $acme;
         }
         return $this->acme;

@@ -7,7 +7,6 @@ use LogicException;
 use InvalidArgumentException;
 use pas9x\acme\Utils;
 use phpseclib\Crypt\RSA;
-use pas9x\acme\ACME_internals;
 use pas9x\acme\contracts\PublicKey;
 
 class RSAPublicKey implements PublicKey

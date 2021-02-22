@@ -108,7 +108,7 @@ class Order extends Entity
         }
         $this->account->internals()->joseRequest($url);
         $this->account->acme()->internals()->parseResponse(false);
-        $responseBody = $this->account->acme()->httpClient()->lastResponse()->body();
+        $responseBody = $this->account->acme()->internals()->lastResponse->getBody()->getContents();
         preg_match_all('/\-+[ \t]*BEGIN CERTIFICATE[ \t]*\-+\s+.+\s+\-+[ \t]*END CERTIFICATE[ \t]*\-+(?:\s|$)/siU', $responseBody, $matches);
         if (!isset($matches[0][0])) {
             throw new UnexpectedResponse('No certificates returned', $responseBody);
