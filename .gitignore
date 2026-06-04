@@ -1,0 +1,14 @@
+.idea
+/vendor
+/composer.lock
+
+/tests/*.json
+/tests/*.key
+/tests/*.csr
+/tests/*.pem
+/tests/test*.php
+/tests/tmp
+/tests/config.php
+
+/*.php
+/todo.txt

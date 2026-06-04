@@ -1,0 +1,42 @@
+{
+    "name": "pas9x/acme",
+    "description": "ACME PHP Client",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "pas9x",
+            "homepage": "https://github.com/pas9x/acme"
+        }
+    ],
+    "keywords": [
+        "acme",
+        "letsencrypt",
+        "rfc8555"
+    ],
+    "minimum-stability": "stable",
+    "autoload": {
+        "psr-4": {
+            "pas9x\\acme\\": "src/pas9x/acme"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "test\\": "tests/test"
+        }
+    },
+    "require": {
+        "php": "^8.1",
+        "ext-json": "*",
+        "ext-hash": "*",
+        "ext-curl": "*",
+        "psr/http-client": "^1.0",
+        "nyholm/psr7": "^1.8",
+        "phpseclib/phpseclib": "^3.0"
+    },
+    "require-dev": {
+        "ext-openssl": "*",
+        "guzzlehttp/guzzle": "^7.10",
+        "symfony/http-client": "^8.0"
+    }
+}
