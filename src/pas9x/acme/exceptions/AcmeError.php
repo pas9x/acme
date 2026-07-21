@@ -16,7 +16,7 @@ class AcmeError extends \RuntimeException
     public function __construct(
         public readonly string $type,
         public readonly ?string $detail,
-        public readonly int $httpCode,
+        public readonly ?int $httpCode,
         public readonly object $rawError
     )
     {
