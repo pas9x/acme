@@ -111,7 +111,6 @@ class Order extends AuthorizedEntity
 
         $payload = new \stdClass;
         $payload->csr = Utils::b64_urlencode(Utils::pemToDer($csr->csrPem));
-        file_put_contents('/tmp/csr.txt', $payload->csr);
 
         $this->authorized->executeAuthorizedRequest($this->finalize, $payload);
         $rawOrder = $this->internals->parseResponse(true);
